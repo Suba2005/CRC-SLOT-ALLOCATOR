@@ -1,0 +1,58 @@
+{% extends "base.html" %}
+{% block title %}Dashboard — CRC Portal{% endblock %}
+
+{% block content %}
+<div class="page-wrapper">
+    <h1 class="page-title animate-in">📊 Dashboard</h1>
+    <p class="page-subtitle animate-in">Welcome back, {{ session.get('username', 'User') }}! Here are your recent
+        allocation runs.</p>
+
+    <div class="actions-bar animate-in" style="margin-bottom: 2rem;">
+        <a href="{{ url_for('allocator.upload') }}" class="btn btn-primary btn-lg">
+            ➕ New Allocation
+        </a>
+    </div>
+
+    <div class="card animate-in">
+        <div class="card-header">
+            <span class="icon">📜</span>
+            <h2>Recent Allocations</h2>
+        </div>
+
+        {% if runs %}
+        <div class="history-list">
+            {% for run in runs %}
+            {% set config = run.get_config() %}
+            {% set results = run.get_results() %}
+            {% set summary = results.get('summary', {}) %}
+            <div class="history-item">
+                <div class="info">
+                    <strong>
+                        {{ config.get('day_filter', 'All Days') or 'All Days' }}
+                        — {{ config.get('roll_count', '?') }} students
+                    </strong>
+                    <span class="date">
+                        {{ run.timestamp.strftime('%b %d, %Y at %I:%M %p') if run.timestamp else 'N/A' }}
+                        | Panels: {{ config.get('panel_count', 1) }}
+                        | Limit: {{ config.get('slot_limit', 10) }}
+                    </span>
+                </div>
+                <div class="stats">
+                    <span style="color: var(--accent-green);">✅ {{ summary.get('allocated_count', 0) }}</span>
+                    <span style="color: var(--accent-red);">🚫 {{ summary.get('not_available_count', 0) }}</span>
+                    {% if summary.get('overflow_count', 0) > 0 %}
+                    <span style="color: var(--accent-orange);">⚠️ {{ summary.get('overflow_count', 0) }}</span>
+                    {% endif %}
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+        {% else %}
+        <div class="empty-state">
+            <div class="icon">📭</div>
+            <p>No allocation runs yet. Start your first one!</p>
+        </div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}

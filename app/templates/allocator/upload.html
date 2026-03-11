@@ -1,0 +1,56 @@
+{% extends "base.html" %}
+{% block title %}Upload Data — CRC Portal{% endblock %}
+
+{% block content %}
+<div class="page-wrapper">
+    <!-- Step Indicator -->
+    <div class="steps animate-in">
+        <div class="step active">
+            <span class="num">1</span> Upload Data
+        </div>
+        <div class="step">
+            <span class="num">2</span> Configure
+        </div>
+        <div class="step">
+            <span class="num">3</span> Results
+        </div>
+    </div>
+
+    <h1 class="page-title animate-in">📋 Upload Data</h1>
+    <p class="page-subtitle animate-in">Paste your Google Sheet URL and enter roll numbers to begin allocation.</p>
+
+    <div class="card animate-in">
+        <div class="card-header">
+            <span class="icon">🔗</span>
+            <h2>Data Input</h2>
+        </div>
+
+        <form method="POST" action="{{ url_for('allocator.upload') }}" data-validate>
+            <div class="form-group">
+                <label for="sheet_url">Google Sheet URL</label>
+                <input type="url" class="form-control" id="sheet_url" name="sheet_url"
+                    placeholder="https://docs.google.com/spreadsheets/d/SHEET_ID/edit"
+                    value="{{ session.get('sheet_url', '') }}" required>
+                <small style="color: var(--text-muted); font-size: 0.8rem; margin-top: 0.3rem; display: block;">
+                    ℹ️ The service account (<code>slot-allocator-reader@slotallocator.iam.gserviceaccount.com</code>)
+                    must have Viewer access to this sheet.
+                </small>
+            </div>
+
+            <div class="form-group">
+                <label for="roll_numbers">Roll Numbers</label>
+                <textarea class="form-control" id="roll_numbers" name="roll_numbers"
+                    placeholder="Enter roll numbers (one per line, or separated by commas)&#10;&#10;Example:&#10;23CS101&#10;23CS102&#10;23CS103"
+                    required>{{ session.get('roll_numbers', [])|join('\n') }}</textarea>
+                <small style="color: var(--text-muted); font-size: 0.8rem; margin-top: 0.3rem; display: block;">
+                    Supports comma, newline, or space-separated values.
+                </small>
+            </div>
+
+            <button type="submit" class="btn btn-primary btn-lg btn-block">
+                🚀 Load Data & Continue
+            </button>
+        </form>
+    </div>
+</div>
+{% endblock %}

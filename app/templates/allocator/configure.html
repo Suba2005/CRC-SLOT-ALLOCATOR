@@ -1,0 +1,110 @@
+{% extends "base.html" %}
+{% block title %}Configure Allocation — CRC Portal{% endblock %}
+
+{% block content %}
+<div class="page-wrapper">
+    <!-- Step Indicator -->
+    <div class="steps animate-in">
+        <div class="step completed">
+            <span class="num">✓</span> Upload Data
+        </div>
+        <div class="step active">
+            <span class="num">2</span> Configure
+        </div>
+        <div class="step">
+            <span class="num">3</span> Results
+        </div>
+    </div>
+
+    <h1 class="page-title animate-in">⚙️ Configure Allocation</h1>
+    <p class="page-subtitle animate-in">Set allocation parameters and select time slots.</p>
+
+    <form method="POST" action="{{ url_for('allocator.configure') }}" data-validate>
+        <!-- Config Options -->
+        <div class="card animate-in" style="margin-bottom: 1.5rem;">
+            <div class="card-header">
+                <span class="icon">🎛️</span>
+                <h2>Allocation Parameters</h2>
+            </div>
+
+            <div class="config-grid">
+                <div class="form-group">
+                    <label for="day-filter">Day Filter</label>
+                    <select class="form-control" id="day-filter" name="day_filter">
+                        <option value="" {% if not day_filter %}selected{% endif %}>All Days</option>
+                        <option value="Monday" {% if day_filter=='Monday' %}selected{% endif %}>Monday</option>
+                        <option value="Tuesday" {% if day_filter=='Tuesday' %}selected{% endif %}>Tuesday</option>
+                        <option value="Wednesday" {% if day_filter=='Wednesday' %}selected{% endif %}>Wednesday</option>
+                        <option value="Thursday" {% if day_filter=='Thursday' %}selected{% endif %}>Thursday</option>
+                        <option value="Friday" {% if day_filter=='Friday' %}selected{% endif %}>Friday</option>
+                        <option value="Saturday" {% if day_filter=='Saturday' %}selected{% endif %}>Saturday</option>
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label for="panel_count">Number of Panels</label>
+                    <input type="number" class="form-control" id="panel_count" name="panel_count" value="1" min="1"
+                        max="20" required>
+                </div>
+
+                <div class="form-group">
+                    <label for="slot_limit">Students per Panel</label>
+                    <input type="number" class="form-control" id="slot_limit" name="slot_limit" value="10" min="1"
+                        max="100" required>
+                </div>
+            </div>
+        </div>
+
+        <!-- Slot Selection -->
+        <div class="card animate-in">
+            <div class="card-header">
+                <span class="icon">🕐</span>
+                <h2>Select Time Slots</h2>
+                <span id="slot-count"
+                    style="margin-left: auto; font-size: 0.85rem; color: var(--text-secondary);"></span>
+            </div>
+
+            <div style="display: flex; gap: 0.5rem; margin-bottom: 1rem;">
+                <button type="button" id="select-all-slots" class="btn btn-secondary"
+                    style="font-size: 0.8rem; padding: 0.4rem 0.8rem;">
+                    ✅ Select All
+                </button>
+                <button type="button" id="deselect-all-slots" class="btn btn-secondary"
+                    style="font-size: 0.8rem; padding: 0.4rem 0.8rem;">
+                    ❌ Deselect All
+                </button>
+            </div>
+
+            <!-- Loading indicator -->
+            <div id="slot-loader"
+                style="display: none; align-items: center; gap: 0.5rem; padding: 1rem; color: var(--text-secondary);">
+                <span class="spinner"></span> Loading available slots...
+            </div>
+
+            <div class="slot-picker" id="slot-picker">
+                {% if available_slots %}
+                {% for slot in available_slots %}
+                <div class="slot-option">
+                    <input type="checkbox" name="selected_slots" value="{{ slot }}" id="slot-{{ loop.index }}" checked>
+                    <label for="slot-{{ loop.index }}">🕐 {{ slot }}</label>
+                </div>
+                {% endfor %}
+                {% else %}
+                <p class="empty-state">
+                    No free slots found. Try changing the day filter.
+                </p>
+                {% endif %}
+            </div>
+        </div>
+
+        <div class="actions-bar">
+            <a href="{{ url_for('allocator.upload') }}" class="btn btn-secondary">
+                ← Back to Upload
+            </a>
+            <button type="submit" class="btn btn-success btn-lg" style="flex: 1;">
+                🚀 Run Allocation
+            </button>
+        </div>
+    </form>
+</div>
+{% endblock %}

@@ -1,0 +1,21 @@
+# Environment variables (NEVER push to git)
+.env
+
+# Service account key (NEVER push to git)
+*.json
+!package.json
+!package-lock.json
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+instance/
+
+# IDE
+.vscode/
+.idea/
+
+# OS
+.DS_Store
+Thumbs.db

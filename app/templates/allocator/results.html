@@ -1,0 +1,184 @@
+{% extends "base.html" %}
+{% block title %}Allocation Results — CRC Portal{% endblock %}
+
+{% block content %}
+<div class="page-wrapper">
+    <!-- Step Indicator -->
+    <div class="steps animate-in">
+        <div class="step completed">
+            <span class="num">✓</span> Upload Data
+        </div>
+        <div class="step completed">
+            <span class="num">✓</span> Configure
+        </div>
+        <div class="step active">
+            <span class="num">3</span> Results
+        </div>
+    </div>
+
+    <h1 class="page-title animate-in">📊 Allocation Results</h1>
+    <p class="page-subtitle animate-in">
+        {% if day_filter %}Day: {{ day_filter }} | {% endif %}
+        Panels: {{ panel_count }} | Students per panel: {{ session.get('slot_limit', 10) }}
+    </p>
+
+    <!-- ── Summary Cards ── -->
+    {% set summary = results.get('summary', {}) %}
+    <div class="summary-grid animate-in">
+        <div class="summary-card total">
+            <div class="value">{{ summary.get('total_roll', 0) }}</div>
+            <div class="label">Total Students</div>
+        </div>
+        <div class="summary-card allocated">
+            <div class="value">{{ summary.get('allocated_count', 0) }}</div>
+            <div class="label">Allocated</div>
+        </div>
+        <div class="summary-card unavailable">
+            <div class="value">{{ summary.get('not_available_count', 0) }}</div>
+            <div class="label">Not Available</div>
+        </div>
+        {% if summary.get('overflow_count', 0) > 0 %}
+        <div class="summary-card overflow">
+            <div class="value">{{ summary.get('overflow_count', 0) }}</div>
+            <div class="label">Overflow</div>
+        </div>
+        {% endif %}
+    </div>
+
+    {% if summary.get('error') %}
+    <div class="card animate-in" style="border-color: var(--accent-red);">
+        <p style="color: var(--accent-red); font-weight: 600;">⚠️ {{ summary.error }}</p>
+    </div>
+    {% endif %}
+
+    <!-- ── Section 1: Allocated Students (by slot) ── -->
+    {% if slots_data %}
+    <div class="section-header blue animate-in" style="margin-top: 1.5rem;">
+        📋 STUDENT ALLOCATION TO MOCK GD / PI SLOTS
+    </div>
+
+    {% for slot_name, entries in slots_data.items() %}
+    <div class="slot-section animate-in">
+        <div class="slot-header">
+            🕐 Time Slot: {{ slot_name }}
+        </div>
+        <div class="table-wrapper" style="border-radius: 0;">
+            <table>
+                <thead>
+                    <tr>
+                        <th>Roll No</th>
+                        <th>Name</th>
+                        <th>Batch</th>
+                        {% if panel_count > 1 %}
+                        <th>Panel</th>
+                        {% endif %}
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for entry in entries %}
+                    <tr>
+                        <td>{{ entry.roll_no }}</td>
+                        <td>{{ entry.name }}</td>
+                        <td>{{ entry.batch }}</td>
+                        {% if panel_count > 1 %}
+                        <td>Panel {{ entry.panel }}</td>
+                        {% endif %}
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        <div class="slot-total">
+            <span>Total Allocated</span>
+            <span>{{ entries|length }}</span>
+        </div>
+    </div>
+    {% endfor %}
+    {% endif %}
+
+    <!-- ── Section 2: Not Available ── -->
+    {% set not_available = results.get('not_available', []) %}
+    {% if not_available %}
+    <div class="section-header red animate-in" style="margin-top: 2rem;">
+        🚫 STUDENTS NOT AVAILABLE FOR ALLOCATION
+    </div>
+
+    <div class="table-wrapper animate-in">
+        <table>
+            <thead>
+                <tr>
+                    <th>Roll No</th>
+                    <th>Name</th>
+                    <th>Batch</th>
+                    <th>Reason</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for entry in not_available %}
+                <tr>
+                    <td>{{ entry.roll_no }}</td>
+                    <td>{{ entry.name }}</td>
+                    <td>{{ entry.batch }}</td>
+                    <td style="color: var(--accent-red);">{{ entry.reason }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% elif results.get('allocated') %}
+    <div class="card animate-in" style="margin-top: 2rem; text-align: center;">
+        <p style="color: var(--accent-green); font-weight: 600;">
+            ✅ All students from the roll list have free slots in selected times!
+        </p>
+    </div>
+    {% endif %}
+
+    <!-- ── Section 3: Overflow ── -->
+    {% set overflow = results.get('overflow', []) %}
+    {% if overflow %}
+    <div class="section-header orange animate-in" style="margin-top: 2rem;">
+        ⚠️ STUDENTS WITH FREE SLOTS BUT NOT ALLOCATED
+    </div>
+    <p style="text-align: center; color: var(--text-muted); font-style: italic; margin-bottom: 1rem;"
+        class="animate-in">
+        (Reason: Slot capacity limits reached)
+    </p>
+
+    <div class="table-wrapper animate-in">
+        <table>
+            <thead>
+                <tr>
+                    <th>Roll No</th>
+                    <th>Name</th>
+                    <th>Batch</th>
+                    <th>Eligible Free Slots</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for entry in overflow %}
+                <tr>
+                    <td>{{ entry.roll_no }}</td>
+                    <td>{{ entry.name }}</td>
+                    <td>{{ entry.batch }}</td>
+                    <td style="color: var(--accent-orange);">{{ entry.eligible_slots }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% endif %}
+
+    <!-- ── Actions ── -->
+    <div class="actions-bar animate-in" style="margin-top: 2rem;">
+        <a href="{{ url_for('allocator.download') }}" class="btn btn-success btn-lg">
+            📥 Download Excel Report
+        </a>
+        <a href="{{ url_for('allocator.upload') }}" class="btn btn-secondary">
+            🔄 New Allocation
+        </a>
+        <a href="{{ url_for('allocator.dashboard') }}" class="btn btn-secondary">
+            📊 Dashboard
+        </a>
+    </div>
+</div>
+{% endblock %}

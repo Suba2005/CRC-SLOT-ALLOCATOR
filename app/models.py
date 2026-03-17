@@ -9,36 +9,6 @@ from flask_sqlalchemy import SQLAlchemy
 db = SQLAlchemy()
 
 
-class User(db.Model):
-    """Application user with role-based access."""
-    __tablename__ = "users"
-
-    id = db.Column(db.Integer, primary_key=True)
-    username = db.Column(db.String(80), unique=True, nullable=False)
-    email = db.Column(db.String(120), unique=True, nullable=False)
-    password_hash = db.Column(db.String(256), nullable=False)
-    role = db.Column(
-        db.String(20),
-        nullable=False,
-        default="student",
-    )  # student | leader | staff | crc_head
-    created_at = db.Column(
-        db.DateTime, default=lambda: datetime.now(timezone.utc)
-    )
-
-    # Relationship
-    allocation_runs = db.relationship(
-        "AllocationRun", backref="user", lazy=True
-    )
-
-    def set_password(self, password: str):
-        self.password_hash = generate_password_hash(password)
-
-    def check_password(self, password: str) -> bool:
-        return check_password_hash(self.password_hash, password)
-
-    def __repr__(self):
-        return f"<User {self.username} ({self.role})>"
 
 
 class AllocationRun(db.Model):
@@ -46,7 +16,6 @@ class AllocationRun(db.Model):
     __tablename__ = "allocation_runs"
 
     id = db.Column(db.Integer, primary_key=True)
-    user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False)
     timestamp = db.Column(
         db.DateTime, default=lambda: datetime.now(timezone.utc)
     )
@@ -67,4 +36,4 @@ class AllocationRun(db.Model):
         return json.loads(self.results_json) if self.results_json else {}
 
     def __repr__(self):
-        return f"<AllocationRun {self.id} by user {self.user_id}>"
+        return f"<AllocationRun {self.id}>"

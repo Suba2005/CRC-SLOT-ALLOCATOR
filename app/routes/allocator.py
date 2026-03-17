@@ -1,6 +1,5 @@
 """
 Allocator blueprint — upload, configure, run allocation, view results, download.
-Includes test-email route and email notifications for slot allocation results.
 """
 import io
 import json
@@ -11,91 +10,16 @@ from flask import (
 from openpyxl import Workbook
 from openpyxl.styles import Font, Alignment, PatternFill, Border, Side
 
-from ..auth.decorators import login_required
 from ..services.sheets_service import load_master_timetable, get_available_slots
 from ..services.allocation_engine import allocate
-from ..services.email_service import (
-    send_test_email,
-    send_allocation_summary,
-    send_slot_allocation_email,
-)
 from ..models import db, AllocationRun
 
 allocator_bp = Blueprint("allocator", __name__)
 
 
-# ── Test email route — verify SMTP configuration ──
-
-@allocator_bp.route("/test-email")
-@login_required
-def test_email():
-    """
-    Send a test email to the currently logged-in user to verify
-    that the SMTP / Flask-Mail configuration is working correctly.
-    """
-    email = session.get("email", "")
-    username = session.get("username", "User")
-
-    if not email:
-        flash("No email address found in your session. Please log in again.", "warning")
-        return redirect(url_for("auth.login"))
-
-    current_app.logger.info(f"[Test Email] Attempting to send to: {email}")
-    success = send_test_email(email, username)
-
-    if success:
-        flash(f"Test email sent successfully to {email}!", "success")
-    else:
-        flash(f"Failed to send test email to {email}. Check SMTP settings in .env and server logs.", "danger")
-
-    return redirect(url_for("allocator.dashboard"))
-
-
-@allocator_bp.route("/smtp-diag")
-@login_required
-def smtp_diag():
-    """Diagnostic: test raw SMTP connection and show exact error."""
-    import smtplib
-    from email.mime.text import MIMEText
-
-    server = current_app.config.get("MAIL_SERVER", "")
-    port = current_app.config.get("MAIL_PORT", 587)
-    use_tls = current_app.config.get("MAIL_USE_TLS", True)
-    username = current_app.config.get("MAIL_USERNAME", "")
-    password = current_app.config.get("MAIL_PASSWORD", "")
-    sender = current_app.config.get("MAIL_DEFAULT_SENDER", "")
-    email = session.get("email", sender)
-
-    diag = (
-        f"MAIL_SERVER={server}, MAIL_PORT={port}, "
-        f"MAIL_USE_TLS={use_tls}, MAIL_USE_SSL={current_app.config.get('MAIL_USE_SSL')}, "
-        f"USERNAME_SET={bool(username)}, PASSWORD_SET={bool(password)}, "
-        f"SENDER={sender}, TARGET={email}"
-    )
-    current_app.logger.info(f"[SMTP Diag] {diag}")
-
-    try:
-        smtp = smtplib.SMTP(server, int(port), timeout=10)
-        smtp.starttls()
-        smtp.login(username, password)
-        msg = MIMEText(f"SMTP diagnostic from CRC Portal.\n\nConfig: {diag}")
-        msg["Subject"] = "CRC Portal - SMTP Diagnostic"
-        msg["From"] = sender
-        msg["To"] = email
-        smtp.sendmail(sender, [email], msg.as_string())
-        smtp.quit()
-        flash(f"SMTP diagnostic email sent to {email}!", "success")
-    except Exception as e:
-        current_app.logger.error(f"[SMTP Diag Error] {e}")
-        flash(f"SMTP Diagnostic failed: {e}", "danger")
-
-    return redirect(url_for("allocator.dashboard"))
-
-
 # ── Step 1 & 2: Upload Google Sheet URL + Roll Numbers ──
 
 @allocator_bp.route("/upload", methods=["GET", "POST"])
-@login_required
 def upload():
     """Accept Google Sheet URL and roll numbers."""
     if request.method == "POST":
@@ -131,7 +55,6 @@ def upload():
 # ── Step 3: Configure allocation parameters ──
 
 @allocator_bp.route("/configure", methods=["GET", "POST"])
-@login_required
 def configure():
     """Configure day filter, panels, slot limit, and select slots."""
     sheet_url = session.get("sheet_url")
@@ -181,7 +104,6 @@ def configure():
 # ── AJAX: Get slots for a given day filter ──
 
 @allocator_bp.route("/api/slots", methods=["GET"])
-@login_required
 def api_slots():
     """Return available slots as JSON for the given day filter."""
     sheet_url = session.get("sheet_url")
@@ -210,9 +132,8 @@ def api_slots():
 # ── Step 4: Run the allocation engine ──
 
 @allocator_bp.route("/run", methods=["GET"])
-@login_required
 def run_allocation():
-    """Execute the allocation engine, display results, and send notification emails."""
+    """Execute the allocation engine and display results."""
     sheet_url = session.get("sheet_url")
     roll_numbers = session.get("roll_numbers", [])
     day_filter = session.get("day_filter", "")
@@ -242,7 +163,7 @@ def run_allocation():
     # Store results in session and DB
     session["results"] = results
 
-    run_record = AllocationRun(user_id=session["user_id"], sheet_url=sheet_url)
+    run_record = AllocationRun(sheet_url=sheet_url)
     run_record.set_config({
         "day_filter": day_filter,
         "panel_count": panel_count,
@@ -254,22 +175,12 @@ def run_allocation():
     db.session.add(run_record)
     db.session.commit()
 
-    # ── Send allocation summary email to the user who ran the allocation ──
-    user_email = session.get("email", "")
-    username = session.get("username", "User")
-    summary = results.get("summary", {})
-
-    if user_email:
-        # service function formats and sends the summary
-        send_allocation_summary(user_email, username, summary)
-
     return redirect(url_for("allocator.results"))
 
 
 # ── Step 5: Display results dashboard ──
 
 @allocator_bp.route("/results")
-@login_required
 def results():
     """Display the allocation results in a 3-section dashboard."""
     results = session.get("results")
@@ -300,7 +211,6 @@ def results():
 # ── Step 6: Export to Excel ──
 
 @allocator_bp.route("/download")
-@login_required
 def download():
     """Generate a styled .xlsx file and send it for download."""
     results = session.get("results")
@@ -326,12 +236,10 @@ def download():
 # ── Dashboard / History ──
 
 @allocator_bp.route("/dashboard")
-@login_required
 def dashboard():
     """Show dashboard with recent allocation runs."""
     runs = (
         AllocationRun.query
-        .filter_by(user_id=session["user_id"])
         .order_by(AllocationRun.timestamp.desc())
         .limit(10)
         .all()

@@ -6,10 +6,6 @@ from flask import Flask
 from .models import db
 from .config import Config
 
-# mail instance comes from the email_service module so that the service
-# layer owns the extension and routes/services can import it directly.
-from .services.email_service import mail
-
 
 def create_app(config_class=Config):
     """Create and configure the Flask application."""
@@ -30,22 +26,17 @@ def create_app(config_class=Config):
 
     # ── Initialise extensions ──
     db.init_app(app)
-    mail.init_app(app)
 
     # ── Register blueprints ──
-    from .auth.routes import auth_bp
     from .routes.allocator import allocator_bp
 
-    app.register_blueprint(auth_bp, url_prefix="/auth")
     app.register_blueprint(allocator_bp, url_prefix="/allocator")
-    
+
     # ── Root redirect ──
     @app.route("/")
     def index():
-        from flask import redirect, url_for, session
-        if session.get("user_id"):
-            return redirect(url_for("allocator.upload"))
-        return redirect(url_for("auth.login"))
+        from flask import redirect, url_for
+        return redirect(url_for("allocator.upload"))
 
     # ── Create DB tables ──
     with app.app_context():

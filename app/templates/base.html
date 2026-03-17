@@ -16,7 +16,6 @@
     </a>
 
     <ul class="navbar-nav">
-      {% if session.get('user_id') %}
         <li>
           <a href="{{ url_for('allocator.upload') }}"
              class="{{ 'active' if request.endpoint == 'allocator.upload' else '' }}">
@@ -29,19 +28,6 @@
             📊 Dashboard
           </a>
         </li>
-        <li>
-          <span class="user-badge">
-            👤 {{ session.get('username', 'User') }}
-            <span class="role-tag {{ session.get('role', 'student') }}">{{ session.get('role', 'student') }}</span>
-          </span>
-        </li>
-        <li>
-          <a href="{{ url_for('auth.logout') }}" class="btn-logout">🚪 Logout</a>
-        </li>
-      {% else %}
-        <li><a href="{{ url_for('auth.login') }}">🔑 Login</a></li>
-        <li><a href="{{ url_for('auth.register') }}">📝 Register</a></li>
-      {% endif %}
     </ul>
   </nav>
 

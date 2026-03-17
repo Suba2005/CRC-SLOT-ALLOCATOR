@@ -85,18 +85,13 @@ def configure():
 
         return redirect(url_for("allocator.run_allocation"))
 
-    # Load available slots from the sheet using the sheets_service helper
+    # The frontend app.js will now make an AJAX call to /api/slots to fetch the data
+    # without blocking the initial page load.
     day_filter = request.args.get("day_filter", "")
-    try:
-        available_slots = get_available_slots(sheet_url, day_filter)
-    except Exception as e:
-        current_app.logger.error("Error fetching slots", exc_info=e)
-        flash(f"Error reading sheet: {e}", "danger")
-        available_slots = []
 
     return render_template(
         "allocator/configure.html",
-        available_slots=available_slots,
+        available_slots=[],
         day_filter=day_filter,
     )
 

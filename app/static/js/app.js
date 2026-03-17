@@ -82,7 +82,7 @@ function initDayFilterAjax() {
             slots.forEach((slot, i) => {
                 html += `
           <div class="slot-option">
-            <input type="checkbox" name="selected_slots" value="${slot}" id="slot-${i}" checked>
+            <input type="checkbox" name="selected_slots" value="${slot}" id="slot-${i}">
             <label for="slot-${i}">🕐 ${slot}</label>
           </div>
         `;
@@ -98,6 +98,9 @@ function initDayFilterAjax() {
             if (loader) loader.style.display = 'none';
         }
     });
+
+    // Trigger initial load so the slots are fetched asynchronously on page load
+    daySelect.dispatchEvent(new Event('change'));
 }
 
 

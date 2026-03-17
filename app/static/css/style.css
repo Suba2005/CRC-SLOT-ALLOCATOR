@@ -624,7 +624,11 @@ tbody tr:hover {
 }
 
 .slot-option label {
-  display: block;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  white-space: nowrap;
+  min-height: 48px;
   padding: 0.7rem 1rem;
   background: var(--bg-secondary);
   border: 1px solid var(--border-glass);

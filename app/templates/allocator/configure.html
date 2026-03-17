@@ -85,7 +85,7 @@
                 {% if available_slots %}
                 {% for slot in available_slots %}
                 <div class="slot-option">
-                    <input type="checkbox" name="selected_slots" value="{{ slot }}" id="slot-{{ loop.index }}" checked>
+                    <input type="checkbox" name="selected_slots" value="{{ slot }}" id="slot-{{ loop.index }}">
                     <label for="slot-{{ loop.index }}">🕐 {{ slot }}</label>
                 </div>
                 {% endfor %}

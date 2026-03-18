@@ -8,6 +8,7 @@ document.addEventListener('DOMContentLoaded', () => {
     initSlotPicker();
     initDayFilterAjax();
     initSelectAllSlots();
+    initCustomSlot();
     initFormValidation();
 });
 
@@ -125,6 +126,79 @@ function initSelectAllSlots() {
     }
 }
 
+
+// ── Custom Slot: add user-defined time slots ──
+function initCustomSlot() {
+    const addBtn = document.getElementById('add-custom-slot');
+    const input = document.getElementById('custom-slot-input');
+    if (!addBtn || !input) return;
+
+    function addCustomSlot() {
+        const value = input.value.trim();
+
+        // Validate: not empty
+        if (!value) {
+            showToast('Please enter a time slot.', 'warning');
+            input.focus();
+            return;
+        }
+
+        // Validate: must contain "-"
+        if (!value.includes('-')) {
+            showToast('Invalid format. Use: start AM/PM - end AM/PM', 'danger');
+            input.focus();
+            return;
+        }
+
+        // Check for duplicates among existing checkboxes
+        const picker = document.getElementById('slot-picker');
+        if (picker) {
+            const existing = picker.querySelectorAll('input[name="selected_slots"]');
+            for (const cb of existing) {
+                if (cb.value.trim().toLowerCase() === value.toLowerCase()) {
+                    showToast('This slot already exists.', 'warning');
+                    input.value = '';
+                    input.focus();
+                    return;
+                }
+            }
+
+            // Remove "no slots" empty state if present
+            const emptyMsg = picker.querySelector('.empty-state');
+            if (emptyMsg) emptyMsg.remove();
+        }
+
+        // Generate unique ID
+        const uid = 'custom-' + Date.now();
+
+        // Create slot chip (same markup as existing slots, but checked by default)
+        const div = document.createElement('div');
+        div.className = 'slot-option';
+        div.innerHTML = `
+            <input type="checkbox" name="selected_slots" value="${value}" id="${uid}" checked>
+            <label for="${uid}">✏️ ${value}</label>
+        `;
+
+        if (picker) picker.appendChild(div);
+
+        // Clear input and re-bind count
+        input.value = '';
+        input.focus();
+        initSlotPicker();
+
+        showToast(`Custom slot "${value}" added!`, 'success');
+    }
+
+    addBtn.addEventListener('click', addCustomSlot);
+
+    // Also allow pressing Enter in the input
+    input.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') {
+            e.preventDefault();
+            addCustomSlot();
+        }
+    });
+}
 
 // ── Basic form validation ──
 function initFormValidation() {

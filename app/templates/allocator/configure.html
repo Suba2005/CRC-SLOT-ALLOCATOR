@@ -95,6 +95,22 @@
                 </p>
                 {% endif %}
             </div>
+
+            <!-- Custom Slot Input -->
+            <div style="margin-top: 1.2rem; padding-top: 1rem; border-top: 1px solid var(--border-glass);">
+                <label style="display: block; margin-bottom: 0.5rem; font-weight: 600; font-size: 0.9rem; color: var(--text-secondary);">
+                    ✏️ Add Custom Time Slot
+                </label>
+                <div style="display: flex; gap: 0.5rem; align-items: center;">
+                    <input type="text" id="custom-slot-input" class="form-control"
+                        placeholder="e.g. 9:45 AM - 10:15 AM"
+                        style="flex: 1; max-width: 320px;">
+                    <button type="button" id="add-custom-slot" class="btn btn-secondary"
+                        style="font-size: 0.85rem; padding: 0.6rem 1rem; white-space: nowrap;">
+                        ➕ Add Slot
+                    </button>
+                </div>
+            </div>
         </div>
 
         <div class="actions-bar">

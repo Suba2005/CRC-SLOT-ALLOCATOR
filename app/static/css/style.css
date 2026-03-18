@@ -652,6 +652,42 @@ tbody tr:hover {
   background: rgba(78, 124, 255, 0.05);
 }
 
+/* ── Custom slot delete button ── */
+.custom-slot-option {
+  position: relative;
+}
+
+.custom-slot-delete {
+  position: absolute;
+  top: -6px;
+  right: -6px;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  border: none;
+  background: var(--accent-red);
+  color: #fff;
+  font-size: 0.75rem;
+  font-weight: 700;
+  line-height: 1;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0;
+  transition: opacity var(--transition-fast), transform var(--transition-fast);
+  z-index: 2;
+}
+
+.custom-slot-option:hover .custom-slot-delete {
+  opacity: 1;
+}
+
+.custom-slot-delete:hover {
+  transform: scale(1.2);
+  background: #dc2626;
+}
+
 /* ── CONFIG GRID ── */
 .config-grid {
   display: grid;

@@ -133,29 +133,80 @@ function initCustomSlot() {
     const input = document.getElementById('custom-slot-input');
     if (!addBtn || !input) return;
 
-    function addCustomSlot() {
-        const value = input.value.trim();
+    /**
+     * Parse "10:35 AM" → minutes since midnight, or null if invalid.
+     */
+    function parseTime(s) {
+        const m = s.trim().toUpperCase().match(/^(\d{1,2}):(\d{2})\s*(AM|PM)$/);
+        if (!m) return null;
+        let hours = parseInt(m[1], 10);
+        const minutes = parseInt(m[2], 10);
+        const period = m[3];
+        if (hours < 1 || hours > 12 || minutes < 0 || minutes > 59) return null;
+        if (period === 'AM' && hours === 12) hours = 0;
+        else if (period === 'PM' && hours !== 12) hours += 12;
+        return hours * 60 + minutes;
+    }
 
-        // Validate: not empty
-        if (!value) {
+    /**
+     * Normalize "9:00 am" → "9:00 AM", "09:00am" → "9:00 AM"
+     */
+    function normalizeTimePart(s) {
+        const m = s.trim().toUpperCase().match(/^(\d{1,2}):(\d{2})\s*(AM|PM)$/);
+        if (!m) return null;
+        return `${parseInt(m[1], 10)}:${m[2]} ${m[3]}`;
+    }
+
+    function addCustomSlot() {
+        let raw = input.value.trim();
+
+        if (!raw) {
             showToast('Please enter a time slot.', 'warning');
             input.focus();
             return;
         }
 
-        // Validate: must contain "-"
-        if (!value.includes('-')) {
-            showToast('Invalid format. Use: start AM/PM - end AM/PM', 'danger');
+        // Must contain "-"
+        if (!raw.includes('-')) {
+            showToast('Please follow the format: HH:MM AM - HH:MM PM', 'danger');
             input.focus();
             return;
         }
 
-        // Check for duplicates among existing checkboxes
+        const parts = raw.split('-');
+        if (parts.length !== 2) {
+            showToast('Please follow the format: HH:MM AM - HH:MM PM', 'danger');
+            input.focus();
+            return;
+        }
+
+        // Normalize each side
+        const startNorm = normalizeTimePart(parts[0]);
+        const endNorm = normalizeTimePart(parts[1]);
+
+        if (!startNorm || !endNorm) {
+            showToast('Invalid time format. Use: HH:MM AM - HH:MM PM (e.g. 9:00 AM - 10:00 AM)', 'danger');
+            input.focus();
+            return;
+        }
+
+        // Check start < end
+        const startMin = parseTime(parts[0]);
+        const endMin = parseTime(parts[1]);
+        if (startMin >= endMin) {
+            showToast('Start time must be before end time.', 'danger');
+            input.focus();
+            return;
+        }
+
+        const normalized = `${startNorm} - ${endNorm}`;
+
+        // Check for duplicates
         const picker = document.getElementById('slot-picker');
         if (picker) {
             const existing = picker.querySelectorAll('input[name="selected_slots"]');
             for (const cb of existing) {
-                if (cb.value.trim().toLowerCase() === value.toLowerCase()) {
+                if (cb.value.trim().toLowerCase() === normalized.toLowerCase()) {
                     showToast('This slot already exists.', 'warning');
                     input.value = '';
                     input.focus();
@@ -163,35 +214,39 @@ function initCustomSlot() {
                 }
             }
 
-            // Remove "no slots" empty state if present
+            // Remove empty state message if present
             const emptyMsg = picker.querySelector('.empty-state');
             if (emptyMsg) emptyMsg.remove();
         }
 
-        // Generate unique ID
+        // Generate unique ID and create custom slot chip with delete button
         const uid = 'custom-' + Date.now();
-
-        // Create slot chip (same markup as existing slots, but checked by default)
         const div = document.createElement('div');
-        div.className = 'slot-option';
+        div.className = 'slot-option custom-slot-option';
         div.innerHTML = `
-            <input type="checkbox" name="selected_slots" value="${value}" id="${uid}" checked>
-            <label for="${uid}">✏️ ${value}</label>
+            <input type="checkbox" name="selected_slots" value="${normalized}" id="${uid}" checked>
+            <label for="${uid}">✏️ ${normalized}</label>
+            <button type="button" class="custom-slot-delete" title="Remove this slot">&times;</button>
         `;
+
+        // Attach delete handler
+        div.querySelector('.custom-slot-delete').addEventListener('click', (e) => {
+            e.stopPropagation();
+            div.remove();
+            initSlotPicker(); // update count
+            showToast('Custom slot removed.', 'info');
+        });
 
         if (picker) picker.appendChild(div);
 
-        // Clear input and re-bind count
         input.value = '';
         input.focus();
         initSlotPicker();
-
-        showToast(`Custom slot "${value}" added!`, 'success');
+        showToast(`Custom slot "${normalized}" added!`, 'success');
     }
 
     addBtn.addEventListener('click', addCustomSlot);
 
-    // Also allow pressing Enter in the input
     input.addEventListener('keydown', (e) => {
         if (e.key === 'Enter') {
             e.preventDefault();

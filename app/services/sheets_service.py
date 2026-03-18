@@ -177,12 +177,22 @@ def _find_column(df: pd.DataFrame, candidates: list[str]) -> str:
 
 
 def _parse_slot_time(slot: str) -> float:
-    """Convert a slot string like "09:00 - 10:00" into sortable float."""
+    """Convert a slot string into a sortable float (minutes since midnight)."""
+    import re
     try:
-        start = slot.split("-")[0].strip()
+        start = slot.split("-")[0].strip().upper()
+        m = re.match(r"^(\d{1,2}):(\d{2})\s*(AM|PM)$", start)
+        if m:
+            hours, minutes, period = int(m.group(1)), int(m.group(2)), m.group(3)
+            if period == "AM" and hours == 12:
+                hours = 0
+            elif period == "PM" and hours != 12:
+                hours += 12
+            return float(hours * 60 + minutes)
+        # Fallback: raw numeric
         parts = start.replace(".", ":").split(":")
         hours = int(parts[0])
         minutes = int(parts[1]) if len(parts) > 1 else 0
-        return hours + minutes / 60.0
+        return hours * 60.0 + minutes
     except Exception:
         return 9999.0

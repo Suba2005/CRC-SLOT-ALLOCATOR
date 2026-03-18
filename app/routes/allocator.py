@@ -440,10 +440,19 @@ def _generate_excel(results: dict, panel_count: int) -> Workbook:
 
 
 def _parse_slot_time_xl(slot: str) -> float:
-    """Parse slot time for sorting."""
+    """Parse slot time for sorting (AM/PM aware)."""
+    import re
     try:
-        start_str = slot.split("-")[0].strip()
+        start_str = slot.split("-")[0].strip().upper()
+        m = re.match(r"^(\d{1,2}):(\d{2})\s*(AM|PM)$", start_str)
+        if m:
+            hours, minutes, period = int(m.group(1)), int(m.group(2)), m.group(3)
+            if period == "AM" and hours == 12:
+                hours = 0
+            elif period == "PM" and hours != 12:
+                hours += 12
+            return float(hours * 60 + minutes)
         parts = start_str.replace(".", ":").split(":")
-        return int(parts[0]) + int(parts[1]) / 60.0 if len(parts) > 1 else int(parts[0])
+        return int(parts[0]) * 60.0 + (int(parts[1]) if len(parts) > 1 else 0)
     except (ValueError, IndexError):
         return 9999.0

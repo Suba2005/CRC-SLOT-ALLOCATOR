@@ -271,12 +271,22 @@ def _filter_free_rows(
 
 
 def _parse_slot_time(slot: str) -> float:
+    """Convert a slot string into a sortable float (minutes since midnight).
+
+    Handles AM/PM format (e.g. '10:35 AM - 11:25 AM') via _parse_time_ampm,
+    and falls back to raw numeric parsing for legacy formats.
+    """
     try:
         start_str = slot.split("-")[0].strip()
+        # Try AM/PM-aware parsing first
+        result = _parse_time_ampm(start_str)
+        if result is not None:
+            return float(result)
+        # Fallback: raw numeric (e.g. "10:30" without AM/PM)
         parts = start_str.replace(".", ":").split(":")
         hours = int(parts[0])
         minutes = int(parts[1]) if len(parts) > 1 else 0
-        return hours + minutes / 60.0
+        return hours * 60.0 + minutes
     except (ValueError, IndexError):
         return 9999.0
 

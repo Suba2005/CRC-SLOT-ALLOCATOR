@@ -10,6 +10,7 @@ allocation, not-available students, overflow, and a summary.
 """
 from __future__ import annotations
 
+import re
 import pandas as pd
 
 
@@ -66,19 +67,25 @@ def allocate(
     if not slot_set:
         return _empty_result("No slots selected.")
 
+    # ── Split into predefined vs custom slots ──
+    sheet_slots = set(free_df[cols["slot"]].astype(str).str.strip().unique())
+    predefined_slots = slot_set & sheet_slots
+    custom_slots = slot_set - sheet_slots
+
     sorted_slots = sorted(slot_set, key=_parse_slot_time)
 
     student_info: dict[str, dict] = {}
     student_free_count: dict[str, int] = {}
     slot_students: dict[str, list[dict]] = {s: [] for s in sorted_slots}
 
+    # ── Existing exact-match logic for predefined slots ──
     for _, row in free_df.iterrows():
         roll = str(row[cols["roll"]]).strip()
         slot_key = str(row[cols["slot"]]).strip()
 
         if roll not in eligible:
             continue
-        if slot_key not in slot_set:
+        if slot_key not in predefined_slots:
             continue
 
         name = str(row[cols["name"]]).strip()
@@ -89,6 +96,13 @@ def allocate(
 
         slot_students[slot_key].append(
             {"roll_no": roll, "name": name, "batch": batch, "slot": slot_key}
+        )
+
+    # ── Time-range matching for custom slots ──
+    if custom_slots:
+        _find_custom_slot_candidates(
+            free_df, cols, eligible, custom_slots,
+            student_info, student_free_count, slot_students,
         )
 
     if not student_info:
@@ -291,3 +305,120 @@ def _empty_result(message: str) -> dict:
         },
         "slot_totals": {},
     }
+
+
+# ---------------------------------------------------------------------------
+# custom slot helpers — time-range merging
+# ---------------------------------------------------------------------------
+
+def _parse_time_ampm(s: str) -> int | None:
+    """Parse a time string like '10:35 AM' into minutes since midnight.
+
+    Returns None if parsing fails.
+    """
+    s = s.strip().upper()
+    m = re.match(r"^(\d{1,2}):(\d{2})\s*(AM|PM)$", s)
+    if not m:
+        return None
+    hours, minutes, period = int(m.group(1)), int(m.group(2)), m.group(3)
+    if period == "AM" and hours == 12:
+        hours = 0
+    elif period == "PM" and hours != 12:
+        hours += 12
+    return hours * 60 + minutes
+
+
+def _parse_slot_range(slot: str) -> tuple[int, int] | None:
+    """Parse a slot string like '10:35 AM - 11:25 AM' into (start_min, end_min).
+
+    Returns None if parsing fails.
+    """
+    parts = slot.split("-")
+    if len(parts) < 2:
+        return None
+    start = _parse_time_ampm(parts[0])
+    end = _parse_time_ampm(parts[-1])
+    if start is None or end is None:
+        return None
+    return (start, end)
+
+
+def _merge_intervals(intervals: list[tuple[int, int]]) -> list[tuple[int, int]]:
+    """Merge sorted, potentially consecutive/overlapping intervals.
+
+    E.g. [(630,680),(680,730)] → [(630,730)]
+    """
+    if not intervals:
+        return []
+    intervals.sort()
+    merged = [intervals[0]]
+    for start, end in intervals[1:]:
+        prev_start, prev_end = merged[-1]
+        if start <= prev_end:  # consecutive or overlapping
+            merged[-1] = (prev_start, max(prev_end, end))
+        else:
+            merged.append((start, end))
+    return merged
+
+
+def _find_custom_slot_candidates(
+    free_df: pd.DataFrame,
+    cols: dict[str, str],
+    eligible: set[str],
+    custom_slots: set[str],
+    student_info: dict[str, dict],
+    student_free_count: dict[str, int],
+    slot_students: dict[str, list[dict]],
+) -> None:
+    """Populate slot_students for custom slots using time-range merging.
+
+    For each eligible student, collects all their free slot intervals,
+    merges consecutive ones, then checks if each custom slot's time range
+    falls completely within any merged block.
+    """
+    # Parse custom slots into (start_min, end_min)
+    parsed_custom: list[tuple[str, int, int]] = []
+    for cs in custom_slots:
+        rng = _parse_slot_range(cs)
+        if rng:
+            parsed_custom.append((cs, rng[0], rng[1]))
+
+    if not parsed_custom:
+        return
+
+    # Build per-student free intervals from ALL free rows (not just selected slots)
+    student_intervals: dict[str, list[tuple[int, int]]] = {}
+    student_lookup: dict[str, tuple[str, str]] = {}  # roll -> (name, batch)
+
+    for _, row in free_df.iterrows():
+        roll = str(row[cols["roll"]]).strip()
+        if roll not in eligible:
+            continue
+
+        slot_str = str(row[cols["slot"]]).strip()
+        rng = _parse_slot_range(slot_str)
+        if rng is None:
+            continue
+
+        student_intervals.setdefault(roll, []).append(rng)
+        if roll not in student_lookup:
+            student_lookup[roll] = (
+                str(row[cols["name"]]).strip(),
+                str(row[cols["batch"]]).strip(),
+            )
+
+    # For each student, merge their intervals and check each custom slot
+    for roll, intervals in student_intervals.items():
+        merged = _merge_intervals(intervals)
+        name, batch = student_lookup[roll]
+
+        for cs_name, cs_start, cs_end in parsed_custom:
+            for block_start, block_end in merged:
+                if cs_start >= block_start and cs_end <= block_end:
+                    # Student is available for this custom slot
+                    student_info.setdefault(roll, {"name": name, "batch": batch})
+                    student_free_count[roll] = student_free_count.get(roll, 0) + 1
+                    slot_students[cs_name].append(
+                        {"roll_no": roll, "name": name, "batch": batch, "slot": cs_name}
+                    )
+                    break  # found a covering block, no need to check others

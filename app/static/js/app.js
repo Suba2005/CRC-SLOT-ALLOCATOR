@@ -127,87 +127,142 @@ function initSelectAllSlots() {
 }
 
 
-// ── Custom Slot: add user-defined time slots ──
+// ── Custom Slot: add user-defined time slots with strict validation ──
 function initCustomSlot() {
     const addBtn = document.getElementById('add-custom-slot');
     const input = document.getElementById('custom-slot-input');
     if (!addBtn || !input) return;
 
-    /**
-     * Parse "10:35 AM" → minutes since midnight, or null if invalid.
-     */
-    function parseTime(s) {
-        const m = s.trim().toUpperCase().match(/^(\d{1,2}):(\d{2})\s*(AM|PM)$/);
-        if (!m) return null;
-        let hours = parseInt(m[1], 10);
-        const minutes = parseInt(m[2], 10);
-        const period = m[3];
-        if (hours < 1 || hours > 12 || minutes < 0 || minutes > 59) return null;
-        if (period === 'AM' && hours === 12) hours = 0;
-        else if (period === 'PM' && hours !== 12) hours += 12;
-        return hours * 60 + minutes;
+    // Create inline error display element below the input
+    const inputContainer = input.parentElement;
+    let errorDiv = document.getElementById('custom-slot-error');
+    if (!errorDiv) {
+        errorDiv = document.createElement('div');
+        errorDiv.id = 'custom-slot-error';
+        errorDiv.style.cssText =
+            'color: #ff6b6b; font-size: 0.82rem; margin-top: 0.4rem; ' +
+            'min-height: 1.2em; transition: opacity 0.25s ease;';
+        inputContainer.parentElement.appendChild(errorDiv);
     }
 
     /**
-     * Normalize "9:00 am" → "9:00 AM", "09:00am" → "9:00 AM"
+     * Show inline error below the input with shake animation.
      */
-    function normalizeTimePart(s) {
-        const m = s.trim().toUpperCase().match(/^(\d{1,2}):(\d{2})\s*(AM|PM)$/);
-        if (!m) return null;
-        return `${parseInt(m[1], 10)}:${m[2]} ${m[3]}`;
+    function showSlotError(msg) {
+        errorDiv.textContent = msg;
+        errorDiv.style.opacity = '1';
+
+        // Red border + shake
+        input.style.borderColor = 'var(--accent-red, #ff6b6b)';
+        input.classList.add('shake');
+        setTimeout(() => input.classList.remove('shake'), 500);
+
+        // Also show as toast for visibility
+        showToast(msg, 'danger');
+    }
+
+    /**
+     * Clear inline error state.
+     */
+    function clearSlotError() {
+        errorDiv.textContent = '';
+        errorDiv.style.opacity = '0';
+        input.style.borderColor = '';
+    }
+
+    // Clear error on new input
+    input.addEventListener('input', clearSlotError);
+
+    /**
+     * Validate a time slot string with granular error messages.
+     * Returns { valid, error, startMin, endMin, normalized } object.
+     */
+    function validateTimeSlot(raw) {
+        // ── Step 1: Overall format ──
+        const pattern = /^(\d{1,2}):(\d{2})\s*(AM|PM)\s*-\s*(\d{1,2}):(\d{2})\s*(AM|PM)$/i;
+        const m = raw.match(pattern);
+        if (!m) {
+            return { valid: false, error: "Invalid time format. Please use 'HH:MM AM/PM - HH:MM AM/PM'" };
+        }
+
+        const startH = parseInt(m[1], 10);
+        const startMStr = m[2];
+        const startPeriod = m[3].toUpperCase();
+        const endH = parseInt(m[4], 10);
+        const endMStr = m[5];
+        const endPeriod = m[6].toUpperCase();
+        const startM = parseInt(startMStr, 10);
+        const endM = parseInt(endMStr, 10);
+
+        // ── Step 2: Hour validation (1–12) ──
+        if (startH < 1 || startH > 12 || endH < 1 || endH > 12) {
+            return { valid: false, error: "Invalid hour. Use values between 1 and 12" };
+        }
+
+        // ── Step 3: Minute validation (00–59) ──
+        if (startM < 0 || startM > 59 || endM < 0 || endM > 59) {
+            return { valid: false, error: "Minutes must be between 00 and 59" };
+        }
+
+        // Convert to minutes since midnight
+        let startTotal = startH;
+        if (startPeriod === 'AM' && startTotal === 12) startTotal = 0;
+        else if (startPeriod === 'PM' && startTotal !== 12) startTotal += 12;
+        startTotal = startTotal * 60 + startM;
+
+        let endTotal = endH;
+        if (endPeriod === 'AM' && endTotal === 12) endTotal = 0;
+        else if (endPeriod === 'PM' && endTotal !== 12) endTotal += 12;
+        endTotal = endTotal * 60 + endM;
+
+        // ── Step 4: Same start and end ──
+        if (startTotal === endTotal) {
+            return { valid: false, error: "Start and end time cannot be the same" };
+        }
+
+        // ── Step 5: End must be after start ──
+        if (endTotal <= startTotal) {
+            return { valid: false, error: "End time must be later than start time" };
+        }
+
+        // ── Step 6: Duration cap (max 2 hours = 120 minutes) ──
+        if (endTotal - startTotal > 120) {
+            return { valid: false, error: "Slot duration must not exceed 2 hours" };
+        }
+
+        // ── Normalize ──
+        const normalized = `${startH}:${startMStr} ${startPeriod} - ${endH}:${endMStr} ${endPeriod}`;
+
+        return { valid: true, error: '', startMin: startTotal, endMin: endTotal, normalized };
     }
 
     function addCustomSlot() {
-        let raw = input.value.trim();
+        const raw = input.value.trim();
 
         if (!raw) {
-            showToast('Please enter a time slot.', 'warning');
+            showSlotError('Please enter a time slot.');
             input.focus();
             return;
         }
 
-        // Must contain "-"
-        if (!raw.includes('-')) {
-            showToast('Please follow the format: HH:MM AM - HH:MM PM', 'danger');
+        // ── Validate ──
+        const result = validateTimeSlot(raw);
+        if (!result.valid) {
+            showSlotError(result.error);
             input.focus();
             return;
         }
 
-        const parts = raw.split('-');
-        if (parts.length !== 2) {
-            showToast('Please follow the format: HH:MM AM - HH:MM PM', 'danger');
-            input.focus();
-            return;
-        }
+        const normalized = result.normalized;
+        clearSlotError();
 
-        // Normalize each side
-        const startNorm = normalizeTimePart(parts[0]);
-        const endNorm = normalizeTimePart(parts[1]);
-
-        if (!startNorm || !endNorm) {
-            showToast('Invalid time format. Use: HH:MM AM - HH:MM PM (e.g. 9:00 AM - 10:00 AM)', 'danger');
-            input.focus();
-            return;
-        }
-
-        // Check start < end
-        const startMin = parseTime(parts[0]);
-        const endMin = parseTime(parts[1]);
-        if (startMin >= endMin) {
-            showToast('Start time must be before end time.', 'danger');
-            input.focus();
-            return;
-        }
-
-        const normalized = `${startNorm} - ${endNorm}`;
-
-        // Check for duplicates
+        // ── Check for duplicates ──
         const picker = document.getElementById('slot-picker');
         if (picker) {
             const existing = picker.querySelectorAll('input[name="selected_slots"]');
             for (const cb of existing) {
                 if (cb.value.trim().toLowerCase() === normalized.toLowerCase()) {
-                    showToast('This slot already exists.', 'warning');
+                    showSlotError('This slot already exists.');
                     input.value = '';
                     input.focus();
                     return;
@@ -219,7 +274,7 @@ function initCustomSlot() {
             if (emptyMsg) emptyMsg.remove();
         }
 
-        // Generate unique ID and create custom slot chip with delete button
+        // ── Create custom slot chip with delete button ──
         const uid = 'custom-' + Date.now();
         const div = document.createElement('div');
         div.className = 'slot-option custom-slot-option';

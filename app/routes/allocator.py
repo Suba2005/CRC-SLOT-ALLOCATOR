@@ -12,6 +12,7 @@ from openpyxl.styles import Font, Alignment, PatternFill, Border, Side
 
 from ..services.sheets_service import load_master_timetable, get_available_slots
 from ..services.allocation_engine import allocate
+from ..services.slot_validator import validate_time_slot
 from ..models import db, AllocationRun
 
 allocator_bp = Blueprint("allocator", __name__)
@@ -78,10 +79,34 @@ def configure():
             flash("Please select at least one time slot.", "danger")
             return redirect(url_for("allocator.configure"))
 
+        # ── Server-side slot validation ──
+        # Fetch known predefined slots from the sheet so we only
+        # validate custom (user-typed) slots strictly.
+        try:
+            predefined = set(get_available_slots(sheet_url, day_filter))
+        except Exception:
+            predefined = set()
+
+        validated_slots = []
+        for slot in selected_slots:
+            slot_stripped = slot.strip()
+
+            # Predefined slots from the sheet pass through
+            if slot_stripped in predefined:
+                validated_slots.append(slot_stripped)
+                continue
+
+            # Custom slots get strict validation
+            is_valid, error_msg, normalized = validate_time_slot(slot_stripped)
+            if not is_valid:
+                flash(f"Invalid slot \"{slot_stripped}\": {error_msg}", "danger")
+                return redirect(url_for("allocator.configure"))
+            validated_slots.append(normalized)
+
         session["day_filter"] = day_filter
         session["panel_count"] = panel_count
         session["slot_limit"] = slot_limit
-        session["selected_slots"] = selected_slots
+        session["selected_slots"] = validated_slots
 
         return redirect(url_for("allocator.run_allocation"))
 
